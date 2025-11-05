@@ -28,6 +28,15 @@ public class MetaMessageRequest
 
     [JsonPropertyName("image")]
     public MetaMediaMessage? Image { get; set; }
+
+    [JsonPropertyName("video")]
+    public MetaMediaMessage? Video { get; set; }
+
+    [JsonPropertyName("audio")]
+    public MetaMediaMessage? Audio { get; set; }
+
+    [JsonPropertyName("document")]
+    public MetaDocumentMessage? Document { get; set; }
 }
 
 /// <summary>
@@ -43,7 +52,7 @@ public class MetaTextMessage
 }
 
 /// <summary>
-/// Messaggio media (immagine) per Meta API
+/// Messaggio media (immagine, video, audio) per Meta API
 /// </summary>
 public class MetaMediaMessage
 {
@@ -52,6 +61,21 @@ public class MetaMediaMessage
 
     [JsonPropertyName("caption")]
     public string? Caption { get; set; }
+}
+
+/// <summary>
+/// Messaggio documento per Meta API
+/// </summary>
+public class MetaDocumentMessage
+{
+    [JsonPropertyName("link")]
+    public string Link { get; set; } = string.Empty;
+
+    [JsonPropertyName("caption")]
+    public string? Caption { get; set; }
+
+    [JsonPropertyName("filename")]
+    public string? Filename { get; set; }
 }
 
 /// <summary>

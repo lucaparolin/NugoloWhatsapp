@@ -15,15 +15,25 @@ public class WhatsAppMessageRequest
     public string To { get; set; } = string.Empty;
 
     /// <summary>
-    /// Contenuto del messaggio da inviare
+    /// Contenuto del messaggio da inviare o caption per media
     /// </summary>
-    [Required(ErrorMessage = "Il messaggio è obbligatorio")]
     [StringLength(1600, ErrorMessage = "Il messaggio non può superare i 1600 caratteri")]
-    public string Message { get; set; } = string.Empty;
+    public string? Message { get; set; }
 
     /// <summary>
-    /// URL dell'immagine da inviare (opzionale)
+    /// URL del media da inviare (immagine, video, audio, documento)
     /// </summary>
-    [Url(ErrorMessage = "URL immagine non valido")]
+    [Url(ErrorMessage = "URL media non valido")]
     public string? MediaUrl { get; set; }
+
+    /// <summary>
+    /// Tipo di media da inviare (default: Text)
+    /// </summary>
+    public MediaType MediaType { get; set; } = MediaType.Text;
+
+    /// <summary>
+    /// Nome del file per i documenti (opzionale)
+    /// </summary>
+    [StringLength(255, ErrorMessage = "Il nome del file non può superare i 255 caratteri")]
+    public string? FileName { get; set; }
 }

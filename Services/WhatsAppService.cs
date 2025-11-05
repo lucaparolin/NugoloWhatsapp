@@ -165,25 +165,71 @@ public class WhatsAppService : IWhatsAppService
             To = cleanedNumber
         };
 
-        // Se c'è un'immagine, invia come messaggio media
-        if (!string.IsNullOrEmpty(request.MediaUrl))
+        // Determina il tipo di messaggio in base al MediaType
+        switch (request.MediaType)
         {
-            metaRequest.Type = "image";
-            metaRequest.Image = new MetaMediaMessage
-            {
-                Link = request.MediaUrl,
-                Caption = request.Message
-            };
-        }
-        else
-        {
-            // Altrimenti invia come messaggio di testo
-            metaRequest.Type = "text";
-            metaRequest.Text = new MetaTextMessage
-            {
-                Body = request.Message,
-                PreviewUrl = false
-            };
+            case MediaType.Image:
+                if (string.IsNullOrEmpty(request.MediaUrl))
+                    throw new ArgumentException("MediaUrl è obbligatorio per i messaggi di tipo Image");
+
+                metaRequest.Type = "image";
+                metaRequest.Image = new MetaMediaMessage
+                {
+                    Link = request.MediaUrl,
+                    Caption = request.Message
+                };
+                break;
+
+            case MediaType.Video:
+                if (string.IsNullOrEmpty(request.MediaUrl))
+                    throw new ArgumentException("MediaUrl è obbligatorio per i messaggi di tipo Video");
+
+                metaRequest.Type = "video";
+                metaRequest.Video = new MetaMediaMessage
+                {
+                    Link = request.MediaUrl,
+                    Caption = request.Message
+                };
+                break;
+
+            case MediaType.Audio:
+                if (string.IsNullOrEmpty(request.MediaUrl))
+                    throw new ArgumentException("MediaUrl è obbligatorio per i messaggi di tipo Audio");
+
+                metaRequest.Type = "audio";
+                metaRequest.Audio = new MetaMediaMessage
+                {
+                    Link = request.MediaUrl,
+                    Caption = request.Message
+                };
+                break;
+
+            case MediaType.Document:
+                if (string.IsNullOrEmpty(request.MediaUrl))
+                    throw new ArgumentException("MediaUrl è obbligatorio per i messaggi di tipo Document");
+
+                metaRequest.Type = "document";
+                metaRequest.Document = new MetaDocumentMessage
+                {
+                    Link = request.MediaUrl,
+                    Caption = request.Message,
+                    Filename = request.FileName
+                };
+                break;
+
+            case MediaType.Text:
+            default:
+                // Messaggio di solo testo
+                if (string.IsNullOrEmpty(request.Message))
+                    throw new ArgumentException("Message è obbligatorio per i messaggi di tipo Text");
+
+                metaRequest.Type = "text";
+                metaRequest.Text = new MetaTextMessage
+                {
+                    Body = request.Message,
+                    PreviewUrl = false
+                };
+                break;
         }
 
         return metaRequest;

@@ -6,6 +6,9 @@ API REST in C# (.NET 8) per l'invio di messaggi WhatsApp tramite **Meta WhatsApp
 
 - ✉️ Invio messaggi di testo via WhatsApp
 - 🖼️ Supporto per invio di immagini con caption
+- 🎥 Supporto per invio di video con caption
+- 🎵 Supporto per invio di file audio
+- 📄 Supporto per invio di documenti (PDF, DOC, XLS, PPT, etc.)
 - 📊 Documentazione Swagger integrata
 - 🔍 Health check endpoint
 - 📝 Logging completo
@@ -130,14 +133,18 @@ L'API sarà disponibile su:
 {
   "to": "+393331234567",
   "message": "Ciao! Questo è un messaggio di test da WhatsApp API.",
-  "mediaUrl": "https://esempio.com/immagine.jpg"
+  "mediaUrl": "https://esempio.com/immagine.jpg",
+  "mediaType": 0,
+  "fileName": "documento.pdf"
 }
 ```
 
 **Parametri:**
 - `to` (obbligatorio): Numero destinatario in formato internazionale (con +)
-- `message` (obbligatorio): Testo del messaggio (max 1600 caratteri)
-- `mediaUrl` (opzionale): URL di un'immagine da inviare
+- `message` (opzionale): Testo del messaggio o caption per media (max 1600 caratteri)
+- `mediaUrl` (opzionale): URL del media da inviare (immagine, video, audio, documento)
+- `mediaType` (opzionale): Tipo di media - 0=Text (default), 1=Image, 2=Video, 3=Audio, 4=Document
+- `fileName` (opzionale): Nome del file per i documenti
 
 **Esempio cURL:**
 ```bash
@@ -173,7 +180,63 @@ curl -X POST https://localhost:5001/api/whatsapp/send \
 https://localhost:5001/api/whatsapp/send-simple?to=+393331234567&message=Ciao!
 ```
 
-#### 3. Health Check
+#### 3. Invia Immagine (POST)
+
+**Endpoint:** `POST /api/whatsapp/send-image`
+
+**Parametri Query:**
+- `to`: Numero destinatario (es: +393331234567)
+- `imageUrl`: URL dell'immagine
+- `caption` (opzionale): Didascalia dell'immagine
+
+**Esempio:**
+```bash
+curl -X POST "https://localhost:5001/api/whatsapp/send-image?to=+393331234567&imageUrl=https://picsum.photos/800/600&caption=Guarda%20questa%20foto"
+```
+
+#### 4. Invia Video (POST)
+
+**Endpoint:** `POST /api/whatsapp/send-video`
+
+**Parametri Query:**
+- `to`: Numero destinatario
+- `videoUrl`: URL del video (MP4, 3GP)
+- `caption` (opzionale): Didascalia del video
+
+**Esempio:**
+```bash
+curl -X POST "https://localhost:5001/api/whatsapp/send-video?to=+393331234567&videoUrl=https://example.com/video.mp4&caption=Guarda%20questo%20video"
+```
+
+#### 5. Invia Audio (POST)
+
+**Endpoint:** `POST /api/whatsapp/send-audio`
+
+**Parametri Query:**
+- `to`: Numero destinatario
+- `audioUrl`: URL del file audio (AAC, MP3, AMR, OGG)
+
+**Esempio:**
+```bash
+curl -X POST "https://localhost:5001/api/whatsapp/send-audio?to=+393331234567&audioUrl=https://example.com/audio.mp3"
+```
+
+#### 6. Invia Documento (POST)
+
+**Endpoint:** `POST /api/whatsapp/send-document`
+
+**Parametri Query:**
+- `to`: Numero destinatario
+- `documentUrl`: URL del documento (PDF, DOC, XLS, PPT, etc.)
+- `fileName` (opzionale): Nome del file
+- `caption` (opzionale): Didascalia del documento
+
+**Esempio:**
+```bash
+curl -X POST "https://localhost:5001/api/whatsapp/send-document?to=+393331234567&documentUrl=https://example.com/report.pdf&fileName=Report_2024.pdf&caption=Ecco%20il%20report"
+```
+
+#### 7. Health Check
 
 **Endpoint:** `GET /api/whatsapp/health`
 
@@ -189,7 +252,7 @@ Verifica lo stato della connessione con Meta WhatsApp Business API.
 }
 ```
 
-#### 4. Informazioni API
+#### 8. Informazioni API
 
 **Endpoint:** `GET /api/whatsapp/info`
 
@@ -252,7 +315,9 @@ result = response.json()
 print(f"Messaggio inviato: {result['success']}")
 ```
 
-### Invio Immagine con Caption
+### Invio di Diversi Tipi di Media
+
+#### Immagine con Caption
 
 ```bash
 curl -X POST https://localhost:5001/api/whatsapp/send \
@@ -260,9 +325,74 @@ curl -X POST https://localhost:5001/api/whatsapp/send \
   -d '{
     "to": "+393331234567",
     "message": "Guarda questa immagine!",
-    "mediaUrl": "https://picsum.photos/800/600"
+    "mediaUrl": "https://picsum.photos/800/600",
+    "mediaType": 1
   }'
 ```
+
+#### Video con Caption
+
+```bash
+curl -X POST https://localhost:5001/api/whatsapp/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "+393331234567",
+    "message": "Ecco il video della presentazione",
+    "mediaUrl": "https://example.com/video.mp4",
+    "mediaType": 2
+  }'
+```
+
+#### File Audio
+
+```bash
+curl -X POST https://localhost:5001/api/whatsapp/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "+393331234567",
+    "mediaUrl": "https://example.com/audio.mp3",
+    "mediaType": 3
+  }'
+```
+
+#### Documento con Nome File e Caption
+
+```bash
+curl -X POST https://localhost:5001/api/whatsapp/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "+393331234567",
+    "message": "Report mensile allegato",
+    "mediaUrl": "https://example.com/report.pdf",
+    "fileName": "Report_Gennaio_2024.pdf",
+    "mediaType": 4
+  }'
+```
+
+## Tipi di Media Supportati
+
+Meta WhatsApp Business API supporta i seguenti formati:
+
+### Immagini (MediaType = 1)
+- **Formati:** JPEG, PNG
+- **Dimensione massima:** 5 MB
+- **Risoluzione consigliata:** 800x600 o superiore
+
+### Video (MediaType = 2)
+- **Formati:** MP4, 3GP
+- **Dimensione massima:** 16 MB
+- **Codec video:** H.264
+- **Codec audio:** AAC
+
+### Audio (MediaType = 3)
+- **Formati:** AAC, MP3, AMR, OGG (Opus)
+- **Dimensione massima:** 16 MB
+- **Nota:** I file audio non supportano caption
+
+### Documenti (MediaType = 4)
+- **Formati:** PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT
+- **Dimensione massima:** 100 MB
+- **Nota:** È consigliato specificare il `fileName` per una migliore esperienza utente
 
 ## Struttura del Progetto
 
@@ -274,7 +404,8 @@ NugoloWhatsapp/
 │   ├── WhatsAppMessageRequest.cs  # Modello richiesta
 │   ├── WhatsAppMessageResponse.cs # Modello risposta
 │   ├── WhatsAppBusinessSettings.cs # Configurazione Meta
-│   └── MetaApiModels.cs           # Modelli API Meta
+│   ├── MetaApiModels.cs           # Modelli API Meta
+│   └── MediaType.cs               # Enum tipi di media
 ├── Services/
 │   ├── IWhatsAppService.cs        # Interfaccia servizio
 │   └── WhatsAppService.cs         # Implementazione servizio
@@ -461,16 +592,27 @@ Consulta la [Meta WhatsApp Pricing](https://developers.facebook.com/docs/whatsap
 - [ASP.NET Core Documentation](https://docs.microsoft.com/aspnet/core)
 - [.NET 8 Release Notes](https://learn.microsoft.com/dotnet/core/whats-new/dotnet-8)
 
+## Funzionalità Implementate
+
+- [x] ✅ Invio messaggi di testo
+- [x] ✅ Supporto per immagini con caption
+- [x] ✅ Supporto per video con caption
+- [x] ✅ Supporto per file audio
+- [x] ✅ Supporto per documenti con nome file e caption
+- [x] ✅ Health check endpoint
+- [x] ✅ Documentazione Swagger
+
 ## Estensioni Future
 
 Possibili miglioramenti da implementare:
 - [ ] Supporto per Template Messages
 - [ ] Webhook per ricevere messaggi in entrata
-- [ ] Supporto per altri tipi di media (video, audio, documenti)
 - [ ] Supporto per messaggi interattivi (bottoni, liste)
+- [ ] Supporto per sticker
 - [ ] Rate limiting e code management
 - [ ] Database per storico messaggi
 - [ ] Dashboard web per monitoring
+- [ ] Autenticazione JWT/API Key
 
 ## Licenza
 

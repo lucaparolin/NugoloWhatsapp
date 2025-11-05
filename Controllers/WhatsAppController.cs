@@ -99,6 +99,134 @@ public class WhatsAppController : ControllerBase
     }
 
     /// <summary>
+    /// Invia un'immagine via WhatsApp
+    /// </summary>
+    /// <param name="to">Numero di telefono del destinatario</param>
+    /// <param name="imageUrl">URL dell'immagine</param>
+    /// <param name="caption">Caption dell'immagine (opzionale)</param>
+    /// <returns>Risposta con l'esito dell'invio</returns>
+    [HttpPost("send-image")]
+    [ProducesResponseType(typeof(WhatsAppMessageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<WhatsAppMessageResponse>> SendImage(
+        [FromQuery] string to,
+        [FromQuery] string imageUrl,
+        [FromQuery] string? caption = null)
+    {
+        if (string.IsNullOrWhiteSpace(to) || string.IsNullOrWhiteSpace(imageUrl))
+        {
+            return BadRequest("I parametri 'to' e 'imageUrl' sono obbligatori");
+        }
+
+        var request = new WhatsAppMessageRequest
+        {
+            To = to,
+            MediaUrl = imageUrl,
+            Message = caption,
+            MediaType = MediaType.Image
+        };
+
+        var response = await _whatsAppService.SendMessageAsync(request);
+        return response.Success ? Ok(response) : StatusCode(StatusCodes.Status500InternalServerError, response);
+    }
+
+    /// <summary>
+    /// Invia un video via WhatsApp
+    /// </summary>
+    /// <param name="to">Numero di telefono del destinatario</param>
+    /// <param name="videoUrl">URL del video</param>
+    /// <param name="caption">Caption del video (opzionale)</param>
+    /// <returns>Risposta con l'esito dell'invio</returns>
+    [HttpPost("send-video")]
+    [ProducesResponseType(typeof(WhatsAppMessageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<WhatsAppMessageResponse>> SendVideo(
+        [FromQuery] string to,
+        [FromQuery] string videoUrl,
+        [FromQuery] string? caption = null)
+    {
+        if (string.IsNullOrWhiteSpace(to) || string.IsNullOrWhiteSpace(videoUrl))
+        {
+            return BadRequest("I parametri 'to' e 'videoUrl' sono obbligatori");
+        }
+
+        var request = new WhatsAppMessageRequest
+        {
+            To = to,
+            MediaUrl = videoUrl,
+            Message = caption,
+            MediaType = MediaType.Video
+        };
+
+        var response = await _whatsAppService.SendMessageAsync(request);
+        return response.Success ? Ok(response) : StatusCode(StatusCodes.Status500InternalServerError, response);
+    }
+
+    /// <summary>
+    /// Invia un audio via WhatsApp
+    /// </summary>
+    /// <param name="to">Numero di telefono del destinatario</param>
+    /// <param name="audioUrl">URL del file audio</param>
+    /// <returns>Risposta con l'esito dell'invio</returns>
+    [HttpPost("send-audio")]
+    [ProducesResponseType(typeof(WhatsAppMessageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<WhatsAppMessageResponse>> SendAudio(
+        [FromQuery] string to,
+        [FromQuery] string audioUrl)
+    {
+        if (string.IsNullOrWhiteSpace(to) || string.IsNullOrWhiteSpace(audioUrl))
+        {
+            return BadRequest("I parametri 'to' e 'audioUrl' sono obbligatori");
+        }
+
+        var request = new WhatsAppMessageRequest
+        {
+            To = to,
+            MediaUrl = audioUrl,
+            MediaType = MediaType.Audio
+        };
+
+        var response = await _whatsAppService.SendMessageAsync(request);
+        return response.Success ? Ok(response) : StatusCode(StatusCodes.Status500InternalServerError, response);
+    }
+
+    /// <summary>
+    /// Invia un documento via WhatsApp
+    /// </summary>
+    /// <param name="to">Numero di telefono del destinatario</param>
+    /// <param name="documentUrl">URL del documento</param>
+    /// <param name="fileName">Nome del file (opzionale)</param>
+    /// <param name="caption">Caption del documento (opzionale)</param>
+    /// <returns>Risposta con l'esito dell'invio</returns>
+    [HttpPost("send-document")]
+    [ProducesResponseType(typeof(WhatsAppMessageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<WhatsAppMessageResponse>> SendDocument(
+        [FromQuery] string to,
+        [FromQuery] string documentUrl,
+        [FromQuery] string? fileName = null,
+        [FromQuery] string? caption = null)
+    {
+        if (string.IsNullOrWhiteSpace(to) || string.IsNullOrWhiteSpace(documentUrl))
+        {
+            return BadRequest("I parametri 'to' e 'documentUrl' sono obbligatori");
+        }
+
+        var request = new WhatsAppMessageRequest
+        {
+            To = to,
+            MediaUrl = documentUrl,
+            Message = caption,
+            FileName = fileName,
+            MediaType = MediaType.Document
+        };
+
+        var response = await _whatsAppService.SendMessageAsync(request);
+        return response.Success ? Ok(response) : StatusCode(StatusCodes.Status500InternalServerError, response);
+    }
+
+    /// <summary>
     /// Verifica lo stato della connessione con Meta WhatsApp Business API
     /// </summary>
     /// <returns>Stato della connessione</returns>
@@ -157,12 +285,17 @@ public class WhatsAppController : ControllerBase
         return Ok(new
         {
             name = "WhatsApp API",
-            version = "1.0.0",
+            version = "2.0.0",
             description = "API per l'invio di messaggi WhatsApp tramite Meta WhatsApp Business API",
+            supportedMediaTypes = new[] { "Text", "Image", "Video", "Audio", "Document" },
             endpoints = new[]
             {
-                new { method = "POST", path = "/api/whatsapp/send", description = "Invia un messaggio WhatsApp (JSON)" },
-                new { method = "GET", path = "/api/whatsapp/send-simple", description = "Invia un messaggio semplice (query params)" },
+                new { method = "POST", path = "/api/whatsapp/send", description = "Invia un messaggio WhatsApp (JSON, supporta tutti i tipi di media)" },
+                new { method = "GET", path = "/api/whatsapp/send-simple", description = "Invia un messaggio di testo semplice (query params)" },
+                new { method = "POST", path = "/api/whatsapp/send-image", description = "Invia un'immagine con caption opzionale" },
+                new { method = "POST", path = "/api/whatsapp/send-video", description = "Invia un video con caption opzionale" },
+                new { method = "POST", path = "/api/whatsapp/send-audio", description = "Invia un file audio" },
+                new { method = "POST", path = "/api/whatsapp/send-document", description = "Invia un documento con nome e caption opzionali" },
                 new { method = "GET", path = "/api/whatsapp/health", description = "Verifica lo stato del servizio" },
                 new { method = "GET", path = "/api/whatsapp/info", description = "Informazioni sull'API" }
             },
