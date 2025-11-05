@@ -1,77 +1,111 @@
 using Microsoft.Extensions.Options;
-using Twilio;
-using Twilio.Rest.Api.V2010.Account;
-using Twilio.Types;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using WhatsAppAPI.Models;
 
 namespace WhatsAppAPI.Services;
 
 /// <summary>
-/// Implementazione del servizio per l'invio di messaggi WhatsApp tramite Twilio
+/// Implementazione del servizio per l'invio di messaggi WhatsApp tramite Meta WhatsApp Business API
 /// </summary>
 public class WhatsAppService : IWhatsAppService
 {
-    private readonly TwilioSettings _twilioSettings;
+    private readonly WhatsAppBusinessSettings _settings;
     private readonly ILogger<WhatsAppService> _logger;
+    private readonly HttpClient _httpClient;
+    private readonly string _apiUrl;
 
-    public WhatsAppService(IOptions<TwilioSettings> twilioSettings, ILogger<WhatsAppService> logger)
+    public WhatsAppService(
+        IOptions<WhatsAppBusinessSettings> settings,
+        ILogger<WhatsAppService> logger,
+        HttpClient httpClient)
     {
-        _twilioSettings = twilioSettings.Value;
+        _settings = settings.Value;
         _logger = logger;
+        _httpClient = httpClient;
 
-        // Inizializza il client Twilio
-        TwilioClient.Init(_twilioSettings.AccountSid, _twilioSettings.AuthToken);
+        // Costruisce l'URL dell'API: https://graph.facebook.com/v18.0/{phone-number-id}/messages
+        _apiUrl = $"{_settings.BaseUrl}/{_settings.ApiVersion}/{_settings.PhoneNumberId}/messages";
+
+        // Configura l'HttpClient
+        _httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", _settings.AccessToken);
+        _httpClient.DefaultRequestHeaders.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
     /// <summary>
-    /// Invia un messaggio WhatsApp tramite Twilio API
+    /// Invia un messaggio WhatsApp tramite Meta WhatsApp Business API
     /// </summary>
     public async Task<WhatsAppMessageResponse> SendMessageAsync(WhatsAppMessageRequest request)
     {
         try
         {
-            _logger.LogInformation("Invio messaggio WhatsApp a {To}", request.To);
+            _logger.LogInformation("Invio messaggio WhatsApp a {To} tramite Meta API", request.To);
 
-            // Formatta il numero destinatario nel formato WhatsApp
-            var toNumber = FormatWhatsAppNumber(request.To);
-            var fromNumber = new PhoneNumber(_twilioSettings.WhatsAppNumber);
+            // Prepara la richiesta per Meta API
+            var metaRequest = BuildMetaRequest(request);
 
-            MessageResource? message;
-
-            // Invia messaggio con o senza media
-            if (!string.IsNullOrEmpty(request.MediaUrl))
+            // Serializza la richiesta
+            var jsonContent = JsonSerializer.Serialize(metaRequest, new JsonSerializerOptions
             {
-                message = await MessageResource.CreateAsync(
-                    body: request.Message,
-                    from: fromNumber,
-                    to: toNumber,
-                    mediaUrl: new List<Uri> { new Uri(request.MediaUrl) }
-                );
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            });
+
+            _logger.LogDebug("Richiesta Meta API: {JsonContent}", jsonContent);
+
+            // Invia la richiesta HTTP POST
+            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync(_apiUrl, content);
+
+            var responseContent = await response.Content.ReadAsStringAsync();
+            _logger.LogDebug("Risposta Meta API: {ResponseContent}", responseContent);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var metaResponse = JsonSerializer.Deserialize<MetaMessageResponse>(responseContent);
+
+                var messageId = metaResponse?.Messages?.FirstOrDefault()?.Id ?? "unknown";
+                var status = metaResponse?.Messages?.FirstOrDefault()?.MessageStatus ?? "sent";
+
+                _logger.LogInformation(
+                    "Messaggio inviato con successo. ID: {MessageId}, Stato: {Status}",
+                    messageId, status);
+
+                return new WhatsAppMessageResponse
+                {
+                    Success = true,
+                    MessageId = messageId,
+                    Status = status,
+                    To = request.To,
+                    SentAt = DateTime.UtcNow
+                };
             }
             else
             {
-                message = await MessageResource.CreateAsync(
-                    body: request.Message,
-                    from: fromNumber,
-                    to: toNumber
-                );
+                // Gestisce gli errori dalle API Meta
+                var errorResponse = JsonSerializer.Deserialize<MetaErrorResponse>(responseContent);
+                var errorMessage = errorResponse?.Error?.Message ?? response.ReasonPhrase ?? "Errore sconosciuto";
+                var errorCode = errorResponse?.Error?.Code ?? (int)response.StatusCode;
+
+                _logger.LogError(
+                    "Errore durante l'invio del messaggio. Status: {StatusCode}, Error: {ErrorMessage}, Code: {ErrorCode}",
+                    response.StatusCode, errorMessage, errorCode);
+
+                return new WhatsAppMessageResponse
+                {
+                    Success = false,
+                    ErrorMessage = $"[{errorCode}] {errorMessage}",
+                    To = request.To,
+                    SentAt = DateTime.UtcNow
+                };
             }
-
-            _logger.LogInformation("Messaggio inviato con successo. ID: {MessageId}, Stato: {Status}",
-                message.Sid, message.Status);
-
-            return new WhatsAppMessageResponse
-            {
-                Success = true,
-                MessageId = message.Sid,
-                Status = message.Status.ToString(),
-                To = request.To,
-                SentAt = DateTime.UtcNow
-            };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Errore durante l'invio del messaggio WhatsApp a {To}", request.To);
+            _logger.LogError(ex, "Eccezione durante l'invio del messaggio WhatsApp a {To}", request.To);
 
             return new WhatsAppMessageResponse
             {
@@ -84,41 +118,74 @@ public class WhatsAppService : IWhatsAppService
     }
 
     /// <summary>
-    /// Verifica la connessione con Twilio controllando l'account
+    /// Verifica la connessione con Meta WhatsApp Business API
     /// </summary>
     public async Task<bool> VerifyConnectionAsync()
     {
         try
         {
-            var account = await Twilio.Rest.Api.V2010.AccountResource.FetchAsync(
-                pathSid: _twilioSettings.AccountSid
-            );
+            // Verifica chiamando l'endpoint del phone number
+            var verifyUrl = $"{_settings.BaseUrl}/{_settings.ApiVersion}/{_settings.PhoneNumberId}";
 
-            _logger.LogInformation("Connessione Twilio verificata. Account: {AccountName}", account.FriendlyName);
-            return account != null && account.Status == Twilio.Rest.Api.V2010.AccountResource.StatusEnum.Active;
+            var response = await _httpClient.GetAsync(verifyUrl);
+            var responseContent = await response.Content.ReadAsStringAsync();
+
+            _logger.LogDebug("Verifica connessione Meta API: {StatusCode}, {Response}",
+                response.StatusCode, responseContent);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Connessione Meta WhatsApp Business API verificata con successo");
+                return true;
+            }
+            else
+            {
+                _logger.LogWarning("Verifica connessione fallita. Status: {StatusCode}, Response: {Response}",
+                    response.StatusCode, responseContent);
+                return false;
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Errore durante la verifica della connessione Twilio");
+            _logger.LogError(ex, "Errore durante la verifica della connessione Meta API");
             return false;
         }
     }
 
     /// <summary>
-    /// Formatta il numero di telefono nel formato WhatsApp richiesto da Twilio
+    /// Costruisce la richiesta nel formato richiesto dalle API Meta
     /// </summary>
-    private PhoneNumber FormatWhatsAppNumber(string phoneNumber)
+    private MetaMessageRequest BuildMetaRequest(WhatsAppMessageRequest request)
     {
-        // Rimuove spazi e caratteri non numerici (eccetto il +)
-        var cleaned = new string(phoneNumber.Where(c => char.IsDigit(c) || c == '+').ToArray());
+        // Pulisce il numero di telefono (rimuove il + se presente)
+        var cleanedNumber = request.To.TrimStart('+');
 
-        // Assicura che il numero inizi con +
-        if (!cleaned.StartsWith("+"))
+        var metaRequest = new MetaMessageRequest
         {
-            cleaned = "+" + cleaned;
+            To = cleanedNumber
+        };
+
+        // Se c'è un'immagine, invia come messaggio media
+        if (!string.IsNullOrEmpty(request.MediaUrl))
+        {
+            metaRequest.Type = "image";
+            metaRequest.Image = new MetaMediaMessage
+            {
+                Link = request.MediaUrl,
+                Caption = request.Message
+            };
+        }
+        else
+        {
+            // Altrimenti invia come messaggio di testo
+            metaRequest.Type = "text";
+            metaRequest.Text = new MetaTextMessage
+            {
+                Body = request.Message,
+                PreviewUrl = false
+            };
         }
 
-        // Aggiunge il prefisso whatsapp:
-        return new PhoneNumber($"whatsapp:{cleaned}");
+        return metaRequest;
     }
 }

@@ -99,7 +99,7 @@ public class WhatsAppController : ControllerBase
     }
 
     /// <summary>
-    /// Verifica lo stato della connessione con Twilio
+    /// Verifica lo stato della connessione con Meta WhatsApp Business API
     /// </summary>
     /// <returns>Stato della connessione</returns>
     /// <response code="200">Connessione verificata con successo</response>
@@ -120,7 +120,7 @@ public class WhatsAppController : ControllerBase
                     status = "healthy",
                     service = "WhatsApp API",
                     timestamp = DateTime.UtcNow,
-                    twilioConnection = "active"
+                    metaApiConnection = "active"
                 });
             }
 
@@ -129,8 +129,8 @@ public class WhatsAppController : ControllerBase
                 status = "unhealthy",
                 service = "WhatsApp API",
                 timestamp = DateTime.UtcNow,
-                twilioConnection = "inactive",
-                message = "Impossibile connettersi a Twilio"
+                metaApiConnection = "inactive",
+                message = "Impossibile connettersi a Meta WhatsApp Business API"
             });
         }
         catch (Exception ex)
@@ -158,7 +158,7 @@ public class WhatsAppController : ControllerBase
         {
             name = "WhatsApp API",
             version = "1.0.0",
-            description = "API per l'invio di messaggi WhatsApp tramite Twilio",
+            description = "API per l'invio di messaggi WhatsApp tramite Meta WhatsApp Business API",
             endpoints = new[]
             {
                 new { method = "POST", path = "/api/whatsapp/send", description = "Invia un messaggio WhatsApp (JSON)" },
