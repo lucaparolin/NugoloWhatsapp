@@ -5,7 +5,7 @@ namespace WhatsAppAPI.Models;
 /// <summary>
 /// Rappresenta una richiesta per inviare un messaggio WhatsApp
 /// </summary>
-public class WhatsAppMessageRequest
+public class WhatsAppMessageRequest : IValidatableObject
 {
     /// <summary>
     /// Numero di telefono del destinatario in formato internazionale (es: +393331234567)
@@ -36,4 +36,34 @@ public class WhatsAppMessageRequest
     /// </summary>
     [StringLength(255, ErrorMessage = "Il nome del file non può superare i 255 caratteri")]
     public string? FileName { get; set; }
+
+    /// <summary>
+    /// Validazione custom condizionale in base al MediaType
+    /// </summary>
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        // Valida che MediaType sia un valore valido dell'enum
+        if (!Enum.IsDefined(typeof(MediaType), MediaType))
+        {
+            yield return new ValidationResult(
+                $"MediaType non valido: {(int)MediaType}. Valori permessi: 0-4 (Text, Image, Video, Audio, Document)",
+                new[] { nameof(MediaType) });
+        }
+
+        // Per messaggi di testo, Message è obbligatorio
+        if (MediaType == MediaType.Text && string.IsNullOrWhiteSpace(Message))
+        {
+            yield return new ValidationResult(
+                "Il campo Message è obbligatorio per messaggi di tipo Text",
+                new[] { nameof(Message) });
+        }
+
+        // Per media (non Text), MediaUrl è obbligatorio
+        if (MediaType != MediaType.Text && string.IsNullOrWhiteSpace(MediaUrl))
+        {
+            yield return new ValidationResult(
+                $"Il campo MediaUrl è obbligatorio per messaggi di tipo {MediaType}",
+                new[] { nameof(MediaUrl) });
+        }
+    }
 }

@@ -84,8 +84,8 @@ public class WhatsAppController : ControllerBase
 
         var request = new WhatsAppMessageRequest
         {
-            To = to,
-            Message = message
+            To = to.Trim(),
+            Message = message.Trim()
         };
 
         var response = await _whatsAppService.SendMessageAsync(request);
@@ -120,9 +120,9 @@ public class WhatsAppController : ControllerBase
 
         var request = new WhatsAppMessageRequest
         {
-            To = to,
-            MediaUrl = imageUrl,
-            Message = caption,
+            To = to.Trim(),
+            MediaUrl = imageUrl.Trim(),
+            Message = caption?.Trim(),
             MediaType = MediaType.Image
         };
 
@@ -152,9 +152,9 @@ public class WhatsAppController : ControllerBase
 
         var request = new WhatsAppMessageRequest
         {
-            To = to,
-            MediaUrl = videoUrl,
-            Message = caption,
+            To = to.Trim(),
+            MediaUrl = videoUrl.Trim(),
+            Message = caption?.Trim(),
             MediaType = MediaType.Video
         };
 
@@ -182,8 +182,8 @@ public class WhatsAppController : ControllerBase
 
         var request = new WhatsAppMessageRequest
         {
-            To = to,
-            MediaUrl = audioUrl,
+            To = to.Trim(),
+            MediaUrl = audioUrl.Trim(),
             MediaType = MediaType.Audio
         };
 
@@ -215,10 +215,10 @@ public class WhatsAppController : ControllerBase
 
         var request = new WhatsAppMessageRequest
         {
-            To = to,
-            MediaUrl = documentUrl,
-            Message = caption,
-            FileName = fileName,
+            To = to.Trim(),
+            MediaUrl = documentUrl.Trim(),
+            Message = caption?.Trim(),
+            FileName = fileName?.Trim(),
             MediaType = MediaType.Document
         };
 

@@ -25,14 +25,18 @@ public class WhatsAppService : IWhatsAppService
         _logger = logger;
         _httpClient = httpClient;
 
+        // Validazione configurazione al startup (fail-fast)
+        if (string.IsNullOrWhiteSpace(_settings.AccessToken))
+            throw new InvalidOperationException("AccessToken non configurato in WhatsAppBusiness settings");
+
+        if (string.IsNullOrWhiteSpace(_settings.PhoneNumberId))
+            throw new InvalidOperationException("PhoneNumberId non configurato in WhatsAppBusiness settings");
+
         // Costruisce l'URL dell'API: https://graph.facebook.com/v18.0/{phone-number-id}/messages
         _apiUrl = $"{_settings.BaseUrl}/{_settings.ApiVersion}/{_settings.PhoneNumberId}/messages";
 
-        // Configura l'HttpClient
-        _httpClient.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", _settings.AccessToken);
-        _httpClient.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/json"));
+        // Configura timeout per HttpClient
+        _httpClient.Timeout = TimeSpan.FromSeconds(30);
     }
 
     /// <summary>
@@ -56,9 +60,14 @@ public class WhatsAppService : IWhatsAppService
 
             _logger.LogDebug("Richiesta Meta API: {JsonContent}", jsonContent);
 
+            // Crea HttpRequestMessage con headers per richiesta (thread-safe)
+            using var requestMessage = new HttpRequestMessage(HttpMethod.Post, _apiUrl);
+            requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.AccessToken);
+            requestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            requestMessage.Content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
             // Invia la richiesta HTTP POST
-            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync(_apiUrl, content);
+            var response = await _httpClient.SendAsync(requestMessage);
 
             var responseContent = await response.Content.ReadAsStringAsync();
             _logger.LogDebug("Risposta Meta API: {ResponseContent}", responseContent);
@@ -127,7 +136,11 @@ public class WhatsAppService : IWhatsAppService
             // Verifica chiamando l'endpoint del phone number
             var verifyUrl = $"{_settings.BaseUrl}/{_settings.ApiVersion}/{_settings.PhoneNumberId}";
 
-            var response = await _httpClient.GetAsync(verifyUrl);
+            // Crea HttpRequestMessage con headers per richiesta (thread-safe)
+            using var requestMessage = new HttpRequestMessage(HttpMethod.Get, verifyUrl);
+            requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.AccessToken);
+
+            var response = await _httpClient.SendAsync(requestMessage);
             var responseContent = await response.Content.ReadAsStringAsync();
 
             _logger.LogDebug("Verifica connessione Meta API: {StatusCode}, {Response}",
@@ -157,8 +170,8 @@ public class WhatsAppService : IWhatsAppService
     /// </summary>
     private MetaMessageRequest BuildMetaRequest(WhatsAppMessageRequest request)
     {
-        // Pulisce il numero di telefono (rimuove il + se presente)
-        var cleanedNumber = request.To.TrimStart('+');
+        // Normalizza il numero di telefono in formato E.164 (solo cifre, no +)
+        var cleanedNumber = NormalizePhoneNumber(request.To);
 
         var metaRequest = new MetaMessageRequest
         {
@@ -196,12 +209,19 @@ public class WhatsAppService : IWhatsAppService
                 if (string.IsNullOrEmpty(request.MediaUrl))
                     throw new ArgumentException("MediaUrl è obbligatorio per i messaggi di tipo Audio");
 
+                // Nota: Meta WhatsApp API non supporta caption per audio
+                // Se Message è presente, viene ignorato (non viene inviato)
                 metaRequest.Type = "audio";
                 metaRequest.Audio = new MetaMediaMessage
                 {
                     Link = request.MediaUrl,
-                    Caption = request.Message
+                    Caption = null // Audio non supporta caption
                 };
+
+                if (!string.IsNullOrEmpty(request.Message))
+                {
+                    _logger.LogWarning("Caption ignorato per audio message. Meta API non supporta caption per audio. MediaUrl: {MediaUrl}", request.MediaUrl);
+                }
                 break;
 
             case MediaType.Document:
@@ -233,5 +253,36 @@ public class WhatsAppService : IWhatsAppService
         }
 
         return metaRequest;
+    }
+
+    /// <summary>
+    /// Normalizza il numero di telefono in formato E.164 per Meta API (solo cifre, no +)
+    /// </summary>
+    /// <param name="phoneNumber">Numero in formato internazionale (+39..., 0039..., etc.)</param>
+    /// <returns>Numero normalizzato (es: 393331234567)</returns>
+    private string NormalizePhoneNumber(string phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+            throw new ArgumentException("Numero di telefono vuoto");
+
+        // Rimuove spazi, trattini, parentesi, punti
+        var cleaned = new string(phoneNumber.Where(c => char.IsDigit(c) || c == '+').ToArray());
+
+        // Gestisce prefisso internazionale 00
+        if (cleaned.StartsWith("00"))
+        {
+            cleaned = cleaned.Substring(2); // Rimuove 00, rimane solo country code + numero
+        }
+        // Gestisce prefisso +
+        else if (cleaned.StartsWith("+"))
+        {
+            cleaned = cleaned.Substring(1); // Rimuove +, rimane solo country code + numero
+        }
+
+        // Valida che il numero risultante sia valido (almeno 10 cifre)
+        if (cleaned.Length < 10)
+            throw new ArgumentException($"Numero di telefono troppo corto dopo normalizzazione: {cleaned}");
+
+        return cleaned;
     }
 }
